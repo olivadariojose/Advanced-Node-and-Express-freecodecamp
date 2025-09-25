@@ -37,29 +37,32 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Passport serialize/deserialize
-passport.serializeUser((user, done) => {
-  done(null, user._id);
-});
+// Conectar DB, definir rutas y (de)serialización
+myDB(async client => {
+  const myDataBase = await client.db('database').collection('users');
 
-passport.deserializeUser((id, done) => {
-  // Cuando conectes a la BD, usa algo como:
-  // myDataBase.findOne({ _id: new ObjectID(id) }, (err, doc) => {
-  //   done(err, doc);
-  // });
-  done(null, null);
-});
+  app.route('/').get((req, res) => {
+    res.render('index', { title: 'Connected to Database', message: 'Please login' });
+  });
 
-app.get('/', (req, res) => {
-  res.render('index', {
-    title: 'Hello',
-    message: 'Please log in',
-    showLogin: true,
-    showRegistration: true,
-    showSocialAuth: true
+  passport.serializeUser((user, done) => {
+    done(null, user._id);
+  });
+
+  passport.deserializeUser((id, done) => {
+    myDataBase.findOne({ _id: new ObjectID(id) }, (err, doc) => {
+      // el reto espera done(null, doc)
+      done(null, doc);
+    });
+  });
+
+}).catch(e => {
+  app.route('/').get((req, res) => {
+    res.render('index', { title: e, message: 'Unable to connect to database' });
   });
 });
 
+// Escuchar después de configurar lo anterior
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log('Listening on port ' + PORT);
