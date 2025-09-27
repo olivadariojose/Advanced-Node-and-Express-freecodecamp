@@ -97,9 +97,9 @@ myDB(async (client) => {
     (req, res) => res.redirect('/profile')
   );
 
-  /* Registro de nuevos usuarios */
-  app.post(
-    '/register',
+// server.js
+app.route('/register')
+  .post(
     async (req, res, next) => {
       try {
         const { username, password } = req.body;
@@ -108,7 +108,7 @@ myDB(async (client) => {
 
         const hash = await bcrypt.hash(password, 12);
         await myDataBase.insertOne({ username, password: hash });
-        return next(); // pasa a passport.authenticate
+        return next();
       } catch (e) {
         return next(e);
       }
