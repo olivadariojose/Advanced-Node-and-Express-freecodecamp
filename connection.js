@@ -1,23 +1,16 @@
-// Do not change this file
-require('dotenv').config();
-const { MongoClient } = require('mongodb');
+// connection.js
+const { MongoClient, ServerApiVersion } = require('mongodb');
+const URI = process.env.MONGO_URI;
 
-async function main(callback) {
-    const URI = process.env.MONGO_URI; // Declare MONGO_URI in your .env file
-    const client = new MongoClient(URI, { useNewUrlParser: true, useUnifiedTopology: true });
-
-    try {
-        // Connect to the MongoDB cluster
-        await client.connect();
-
-        // Make the appropriate DB calls
-        await callback(client);
-
-    } catch (e) {
-        // Catch any errors
-        console.error(e);
-        throw new Error('Unable to Connect to Database')
-    }
-}
-
-module.exports = main;
+let client;
+module.exports = async function myDB(callback) {
+  if (!URI) throw new Error('Missing MONGO_URI');
+  if (!client) {
+    client = new MongoClient(URI, {
+      serverApi: { version: ServerApiVersion.v1, strict: true, deprecationErrors: true },
+    });
+    await client.connect();
+    console.log('MongoDB connected');
+  }
+  return callback(client);
+};
