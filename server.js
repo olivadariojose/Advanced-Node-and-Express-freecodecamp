@@ -10,6 +10,7 @@ const session = require('express-session');
 const passport = require('passport');
 const LocalStrategy = require('passport-local');
 const { ObjectId } = require('mongodb');
+const bcrypt = require('bcrypt');
 
 const app = express();
 
@@ -31,13 +32,15 @@ app.use('/public', express.static(process.cwd() + '/public'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-/* session + passport (usa valores del boilerplate FCC) */
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'mysecret',
-  resave: true,
-  saveUninitialized: true,
-  cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 },
-}));
+/* session + passport */
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || 'mysecret',
+    resave: false,
+    saveUninitialized: false,
+    cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 },
+  })
+);
 app.use(passport.initialize());
 app.use(passport.session());
 
@@ -45,17 +48,20 @@ app.use(passport.session());
 myDB(async (client) => {
   const myDataBase = client.db('database').collection('users');
 
-  /* Estrategia Local para ESTE paso (sin bcrypt) */
-  passport.use(new LocalStrategy(async (username, password, done) => {
-    try {
-      const user = await myDataBase.findOne({ username });
-      if (!user) return done(null, false);
-      if (user.password !== password) return done(null, false);
-      return done(null, user);
-    } catch (e) {
-      return done(e);
-    }
-  }));
+  /* Estrategia Local con async/await */
+  passport.use(
+    new LocalStrategy(async (username, password, done) => {
+      try {
+        const user = await myDataBase.findOne({ username });
+        if (!user) return done(null, false);
+        const ok = await bcrypt.compare(password, user.password);
+        if (!ok) return done(null, false);
+        return done(null, user);
+      } catch (e) {
+        return done(e);
+      }
+    })
+  );
 
   /* Serialization */
   passport.serializeUser((user, done) => done(null, user._id));
@@ -71,10 +77,10 @@ myDB(async (client) => {
   /* Middleware protegido */
   function ensureAuthenticated(req, res, next) {
     if (req.isAuthenticated && req.isAuthenticated()) return next();
-    return res.redirect('/');
+    res.redirect('/');
   }
 
-  /* Home: muestra formularios de login y registro */
+  /* Home */
   app.get('/', (req, res) => {
     res.render('index', {
       title: 'Connected to Database',
@@ -84,25 +90,27 @@ myDB(async (client) => {
     });
   });
 
-  /* Login */
-  app.post('/login',
+  /* Login con estrategia Local */
+  app.post(
+    '/login',
     passport.authenticate('local', { failureRedirect: '/' }),
     (req, res) => res.redirect('/profile')
   );
 
-  /* Registro: registrar -> autenticar -> redirigir */
-  app.post('/register',
+  /* Registro de nuevos usuarios */
+  app.post(
+    '/register',
     async (req, res, next) => {
       try {
         const { username, password } = req.body;
-
         const exists = await myDataBase.findOne({ username });
         if (exists) return res.redirect('/');
 
-        await myDataBase.insertOne({ username, password });
-        return next(); // pasa a autenticar
-      } catch (err) {
-        return next(err);
+        const hash = await bcrypt.hash(password, 12);
+        await myDataBase.insertOne({ username, password: hash });
+        return next(); // pasa a passport.authenticate
+      } catch (e) {
+        return next(e);
       }
     },
     passport.authenticate('local', { failureRedirect: '/' }),
@@ -114,9 +122,9 @@ myDB(async (client) => {
     res.render('profile', { username: req.user.username });
   });
 
-  /* Logout robusto (Passport 0.6+) */
+  /* Logout (Passport 0.6+) robusto */
   const logoutHandler = (req, res, next) => {
-    req.logout(err => {
+    req.logout((err) => {
       if (err) return next(err);
       if (req.session) {
         req.session.destroy(() => {
@@ -132,7 +140,9 @@ myDB(async (client) => {
   app.post('/logout', logoutHandler);
 
   /* 404 */
-  app.use((req, res) => res.status(404).type('text').send('Not Found'));
+  app.use((req, res) => {
+    res.status(404).type('text').send('Not Found');
+  });
 
   /* Handler de errores para evitar requests colgados */
   app.use((err, req, res, next) => {
@@ -148,7 +158,9 @@ myDB(async (client) => {
       showRegistration: true,
     });
   });
-  app.use((req, res) => res.status(404).type('text').send('Not Found'));
+  app.use((req, res) => {
+    res.status(404).type('text').send('Not Found');
+  });
   app.use((err, req, res, next) => {
     console.error(err);
     res.status(500).type('text').send('Internal Server Error');
