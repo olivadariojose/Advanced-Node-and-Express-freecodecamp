@@ -25,7 +25,9 @@ fccTesting(app);
 
 /* Pug */
 app.set('view engine', 'pug');
-app.set('views', __dirname + '/views/pug');
+// app.set('views', __dirname + '/views/pug');
+app.set('views', './views/pug');
+
 
 /* Static + body parsers */
 app.use('/public', express.static(process.cwd() + '/public'));
@@ -86,7 +88,7 @@ myDB(async (client) => {
       title: 'Connected to Database',
       message: 'Please login',
       showLogin: true,
-      showRegistration: true,
+      showRegistration: true
     });
   });
 
@@ -97,25 +99,60 @@ myDB(async (client) => {
     (req, res) => res.redirect('/profile')
   );
 
-// server.js
-app.route('/register')
-  .post(
+  app.post(
+    '/register',
     async (req, res, next) => {
       try {
         const { username, password } = req.body;
+
         const exists = await myDataBase.findOne({ username });
         if (exists) return res.redirect('/');
 
-        const hash = await bcrypt.hash(password, 12);
+        const hash = await bcrypt.hash(password, 12); // o process.env.SALT_ROUNDS
         await myDataBase.insertOne({ username, password: hash });
+
+        // pasa al siguiente middleware: autenticación local con las mismas credenciales del body
         return next();
-      } catch (e) {
-        return next(e);
+      } catch (err) {
+        return next(err);
       }
     },
     passport.authenticate('local', { failureRedirect: '/' }),
     (req, res) => res.redirect('/profile')
   );
+
+  // app.route('/register')
+  //   .post((req, res, next) => {
+  //     myDataBase.findOne({ username: req.body.username }, (err, user) => {
+  //       if (err) {
+  //         next(err);
+  //       } else if (user) {
+  //         res.redirect('/');
+  //       } else {
+  //         myDataBase.insertOne({
+  //           username: req.body.username,
+  //           password: req.body.password
+  //         },
+  //           (err, doc) => {
+  //             if (err) {
+  //               res.redirect('/');
+  //             } else {
+  //               // The inserted document is held within
+  //               // the ops property of the doc
+  //               next(null, doc.ops[0]);
+  //             }
+  //           }
+  //         )
+  //       }
+  //     })
+  //   },
+  //     passport.authenticate('local', { failureRedirect: '/' }),
+  //     (req, res, next) => {
+  //       res.redirect('/profile');
+  //     }
+  //   );
+
+
 
   /* Perfil protegido */
   app.get('/profile', ensureAuthenticated, (req, res) => {
@@ -136,9 +173,25 @@ app.route('/register')
       }
     });
   };
-  app.get('/logout', logoutHandler);
-  app.post('/logout', logoutHandler);
-
+  // app.get('/logout', (req, res, next) => {
+  //   req.logout(err => {
+  //     if (err) return next(err);
+  //     return res.redirect('/');
+  //   });
+  // });
+  app.get('/logout', (req, res, next) => {
+    req.logout(err => {
+      if (err) return next(err);
+      if (req.session) {
+        req.session.destroy(() => {
+          res.clearCookie('connect.sid');
+          return res.redirect('/');
+        });
+      } else {
+        return res.redirect('/');
+      }
+    });
+  });
   /* 404 */
   app.use((req, res) => {
     res.status(404).type('text').send('Not Found');
