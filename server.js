@@ -160,38 +160,46 @@ myDB(async (client) => {
   });
 
   /* Logout (Passport 0.6+) robusto */
-  const logoutHandler = (req, res, next) => {
-    req.logout((err) => {
-      if (err) return next(err);
-      if (req.session) {
-        req.session.destroy(() => {
-          res.clearCookie('connect.sid');
-          return res.redirect('/');
-        });
-      } else {
-        return res.redirect('/');
-      }
-    });
-  };
-  // app.get('/logout', (req, res, next) => {
-  //   req.logout(err => {
+  // const logoutHandler = (req, res, next) => {
+  //   req.logout((err) => {
   //     if (err) return next(err);
-  //     return res.redirect('/');
+  //     if (req.session) {
+  //       req.session.destroy(() => {
+  //         res.clearCookie('connect.sid');
+  //         return res.redirect('/');
+  //       });
+  //     } else {
+  //       return res.redirect('/');
+  //     }
   //   });
-  // });
+  // };
+
+//   app.route('/logout')
+//   .get((req, res) => {
+//     req.logout();
+//     res.redirect('/');
+// });
+
+
   app.get('/logout', (req, res, next) => {
     req.logout(err => {
       if (err) return next(err);
-      if (req.session) {
-        req.session.destroy(() => {
-          res.clearCookie('connect.sid');
-          return res.redirect('/');
-        });
-      } else {
-        return res.redirect('/');
-      }
+      return res.redirect('/');
     });
   });
+  // app.get('/logout', (req, res, next) => {
+  //   req.logout(err => {
+  //     if (err) return next(err);
+  //     if (req.session) {
+  //       req.session.destroy(() => {
+  //         res.clearCookie('connect.sid');
+  //         return res.redirect('/');
+  //       });
+  //     } else {
+  //       return res.redirect('/');
+  //     }
+  //   });
+  // });
   /* 404 */
   app.use((req, res) => {
     res.status(404).type('text').send('Not Found');
